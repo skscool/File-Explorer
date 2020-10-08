@@ -51,14 +51,14 @@ string pathProcessing(string str);
 void createNewFiles(vector<string> list);
 void createSingleFile(char *path);
 void makeDirectories(vector<string> list);
-void removeDirectories(vector<string> list);
-void removeSingleDirectory(char *path);
-void removeFiles(vector<string> list);
-void removeSingleFile(char *path);
+void delete_dir(vector<string> list);
+void delete_dir_util(char *path);
+void delete_file(vector<string> list);
+void delete_file_util(char *path);
 void renameFiles(vector<string> list);
-void copycommand(vector<string> list);
-void copydirectory(char *path,char *des);
-void copyfile(char *path,char *des);
+void copy(vector<string> list);
+void copy_dir(char *path,char *des);
+void copy_file(char *path,char *des);
 void movecommand(vector<string> list);
 int searchcommand(vector<string> list);
 void searchanything(char *path,string filename);
@@ -541,27 +541,17 @@ void navigate(){
 				}
 			}
 			//If : pressed , go into command mode
-			else if (ch == 58)
-			{
+			else if (ch == 58){
 				printf("%c[%d;%dH", 27, rowsize + 1, 1);	//goto last line of screen
 				printf("%c[2K", 27);
-				cout << ":";
-				//cout<<"going into command mode :"<<endl;
+				cout << "Command Mode : ";
+				
 				int result = startCommandMode();
 				xcor = 1;
 				printf("%c[%d;%dH", 27, xcor, ycor);    //goto x,y cordinate
-				if (result == 1)
-				{
+				if (result == 1){
 					gotoDir(curPath);
-					//cout<<"goto out : ";
-				}
-				else if (result == 2)
-				{
-					//cout<<"search out : ";
-				}
-				else
-				{
-					//cout<<"Normal out : ";
+				}else if (result != 2){
 					searchflag=0;
 					gotoDir(curPath);
 				}
@@ -618,70 +608,45 @@ vector<string> tokens;
 //**********************************************************************
 // It handles absolute and relative paths in cmd mode
 //**********************************************************************
-string pathProcessing(string str)
-{
-	char firstchar = str[0];
-	string absolutePath="";
+string pathProcessing(string str){
+	char ch = str[0];
 	string basepath = string(root);
-	if(firstchar =='/')
-	{
-		absolutePath = basepath + str;
-	}
-	else if(firstchar=='~')
-	{
-		absolutePath = basepath + str.substr(1,str.length());
-	}
-	else if(firstchar=='.')
-	{
-		absolutePath = string(curPath) + str.substr(1,str.length());	
-	}
+	if(ch =='/')
+		return basepath + str;
+	else if(ch=='~')
+		return basepath + str.substr(1,str.length());
+	else if(ch=='.')
+		return string(curPath) + str.substr(1,str.length());	
 	else
-	{
-		absolutePath = string(curPath)+ "/" + str;
-	}
-
-	return absolutePath;
+		return string(curPath)+ "/" + str;
 }
 
 //**********************************************************************
 // It splits input string into tokens separeted by space
 //**********************************************************************
-void inputProcessing(string str)
-{
+void inputProcessing(string str){
 	
 	unsigned int i=0;
 	tokens.clear();
-	int flag=0;
-	while(i<str.length())
-	{
-		string sub="";
-		while(str[i]!=' ' && i<str.length())
-		{
-			if(str[i]=='\\')
-			{
-				sub += str[i+1];
-				i=i+2;
-			}
-			else{
-
-				sub += str[i];
+	int pathNeeded=0;
+	while(i<str.length()){
+		string word="";
+		while(str[i]!=' ' && i<str.length()){
+			if(str[i]=='\\'){
+				word += str[i+1];
+				i+=2;
+			}else{
+				word += str[i];
 				i++;
 			}
-			
 		}
-		if(flag==1)
-		{
-			string abspath=pathProcessing(sub);
-			tokens.push_back(abspath);
-		}
-		else{
-
-			tokens.push_back(sub);
+		if(pathNeeded==1){
+			string absolutePath = pathProcessing(word);
+			tokens.push_back(absolutePath);
+		}else{
+			tokens.push_back(word);
 			if(tokens[0]!="create_file" && tokens[0]!="create_dir" && tokens[0]!="search")
-			{
-				flag=1;	
-			}
-			
+				pathNeeded=1;	
 		}
 		i++;	
 	}
@@ -691,10 +656,8 @@ void inputProcessing(string str)
 //**********************************************************************
 // After each command runs, it clear command line area
 //**********************************************************************
-void clearCommand()
-{
-	int lastLine = rowsize + 1;
-	printf("%c[%d;%dH",27,lastLine,1);
+void clearCommand(){
+	printf("%c[%d;%dH",27,rowsize + 1,1);	//goto end of screen
 	printf("%c[2K", 27);
 	cout<<":";
 }
@@ -702,90 +665,53 @@ void clearCommand()
 //**********************************************************************
 // Method that starts the CommandMode
 //**********************************************************************
-int startCommandMode()
-{
+int startCommandMode(){
 	char ch;
 	do{
 		string input;
-		while(((ch = getchar())!= 10) && ch!=27)
-		{
-			if(ch==127)
-			{
+		ch = getchar();
+		while(ch!=10 && ch!=27){
+			if(ch==127){							//if delete pressed
 				clearCommand();
 				if(input.length()<=1)
-				{
 					input="";
-				}
-				else{
+				else
 					input = input.substr(0,input.length()-1);
-				}
-				cout<<input;
 				
+				cout<<input;
 			}
 			else{
 				input = input + ch;
 				cout<<ch;	
 			}
-			
+			ch = getchar();
 		}
+		
 		inputProcessing(input);
-		if(ch==10)
-		{
-			string command= tokens[0];
-			if(command == "copy")
-			{
-				//cout<<"Copy command  : "<<endl;
-				copycommand(tokens);
-				clearCommand();
-			}
-			else if(command == "move")
-			{
-				//cout<<"Move command  : "<<endl;
+		if(ch==10){
+			string instrn= tokens[0];
+			if(instrn == "copy"){
+				copy(tokens);
+			}else if(instrn == "move"){
 				movecommand(tokens);
-				clearCommand();
-			}
-			else if(command == "rename")
-			{
-				//cout<<"rename command  : "<<endl;
+			}else if(instrn == "rename"){
 				renameFiles(tokens);
-				clearCommand();
-			}
-			else if(command == "create_file")
-			{
-				//cout<<"create_file command  : "<<endl;
+			}else if(instrn == "create_file"){
 				createNewFiles(tokens);
-				clearCommand();
-			}
-			else if(command == "create_dir")
-			{
-				//cout<<"create_dir command  : "<<endl;
+			}else if(instrn == "create_dir"){
 				makeDirectories(tokens);
-				clearCommand();
-			}
-			else if(command == "delete_file")
-			{
-				//cout<<"delete_file command  : "<<endl;
-				removeFiles(tokens);
-				clearCommand();
-			}
-			else if(command == "delete_dir")
-			{
-				//cout<<"delete_dir command  : "<<endl;
-				removeDirectories(tokens);
-				clearCommand();
-			}
-			else if(command == "goto")
-			{
-				//cout<<"goto command  : "<<endl;
+			}else if(instrn == "delete_file"){
+				delete_file(tokens);
+			}else if(instrn == "delete_dir"){
+				delete_dir(tokens);
+			}else if(instrn == "goto"){
 				string gpath = "";
 				
-				if(tokens.size()!=2)				{
-					printERROR("Invalid Argument in Goto");		//handle error case to continue program
-				}else{
+				if(tokens.size()!=2)
+					printERROR("Please give proper arguments!!");
+				else
 					gpath= tokens[1];
-				}
-				
-				
+								
 				
 				char *path = new char[gpath.length() + 1];
 		 		strcpy(path, gpath.c_str());
@@ -796,22 +722,18 @@ int startCommandMode()
 						forw_stack.pop();
 
 		 		curPath = path;
-		 		//cout<<"\ngoto path : "<<path<<endl;
 		 		return 1;
-			}
-			else if(command == "search")
-			{
-				//cout<<"search command  : "<<endl;
+			}else if(instrn == "search"){
 				int status=searchcommand(tokens);
-				if(status!=0)
+				if(status!=0){
+					clearCommand();
 					return 2;
-				clearCommand();
+				}
 				
-			}
-			else{
+			}else{
 				printERROR("Invalid Command");
-				clearCommand();
 			}
+			clearCommand();
 		}	
 
 	}while(ch != 27);
@@ -835,128 +757,87 @@ int startCommandMode()
 //**********************************************************************
 // This function recursively copy all files/dir into destination path
 //**********************************************************************
-void copydirectory(char *path, char *des)
-{
-	int status= mkdir(des,S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-	 if(-1 == status)
-	 {
-	 	printERROR("Error in creating the Directory in path :::::  "+string(path));
-	 }
+void copy_dir(char *path, char *des){
+	 if(mkdir(des, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+	 	printERROR("Directory can't be created in path -> "+string(path));
 
-	DIR *d;
-	struct dirent *dir;
-	d = opendir(path);
-	if (d) 
-	{
-	    while ((dir = readdir(d)) != NULL) 
-	    {	 
-		      if( (string(dir->d_name) == "..") || (string(dir->d_name) == ".") )	
-		      {   } 
-		  	  else
-		  	  {		
-		  	  		string finalpath=string(path) + "/" +string(dir->d_name);
-					char* newpath = new char[finalpath.length() + 1];
-					strcpy(newpath, finalpath.c_str());
+	DIR *d = opendir(path);
+	struct dirent *diren;
+	if (d) {
+	    while ((diren = readdir(d)) != NULL) {	 
+			if( (string(diren->d_name) != "..") && (string(diren->d_name) != ".") ){		
+				
+				string fullPath = string(path) + "/" +string(diren->d_name);
+				char copyToPath[fullPath.length() + 1];
+				strcpy(copyToPath, fullPath.c_str());
 
-					string finaldestpath=string(des) + "/" +string(dir->d_name);
-					char* newdestpath = new char[finaldestpath.length() + 1];
-					strcpy(newdestpath, finaldestpath.c_str());
+				string finaldestpath=string(des) + "/" +string(diren->d_name);
+				char newdestpath[finaldestpath.length() + 1];
+				strcpy(newdestpath, finaldestpath.c_str());
 
-		  			struct stat sb;
-					if (stat(newpath,&sb) == -1) {
-				        perror("lstat");
-				    }
-				    else{
-
-				    	if((S_ISDIR(sb.st_mode)))
-					    {
-					    	copydirectory(newpath,newdestpath);
-					    }
-					    else
-					    {
-					    	 copyfile(newpath,newdestpath);
-					    }
-				    }
-		  	  		
-		  	  }
+				struct stat st;
+				if (stat(copyToPath,&st) == -1) {
+					perror("lstat");
+				}
+				else{
+					if((S_ISDIR(st.st_mode)))
+						copy_dir(copyToPath,newdestpath);
+					else
+						 copy_file(copyToPath,newdestpath);
+				}
+			}
 	    }
-	}
-	else{
-		printERROR("No such Directory found while copying with path :::::"+ string(path));
+	}else{
+		printERROR("Directory not found! -> "+ string(path));
 	}
 }
 
 //**********************************************************************
 // This function used to copy files at specify Destination
 //**********************************************************************
-void copyfile(char *path, char *des)
-{
-	//cout<<"\nsource path : "<<path<<endl;
-	//cout<<"\ndestination path :"<<des<<endl;
+void copy_file(char *path, char *des){
 
-	char block[1024];
-	int in, out;
-	int nread;
+	char buffer[1024];
+	int in = open(path, O_RDONLY), out = open(des, O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR), readTxt;
 	
-	in = open(path, O_RDONLY);
-	out = open(des, O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR);
-	while((nread = read(in,block,sizeof(block))) > 0)
-		write(out,block,nread);
+	while((readTxt = read(in,buffer,sizeof(buffer))) > 0)
+		write(out,buffer,readTxt);
 
-	struct stat sourcestat,deststat;
-	if (stat(path,&sourcestat) != -1) {  
-    }
-    if (stat(des,&deststat) != -1) {  
-    }
+	struct stat stSRC,stDeST;
+	stat(path,&stSRC);
+    stat(des,&stDeST);
     
-    int status1=chown(des,sourcestat.st_uid, sourcestat.st_gid);
-	if(status1!=0)
-		printERROR("Error in setting ownership of file using chown");
+	if(chown(des,stSRC.st_uid, stSRC.st_gid) != 0)
+		printERROR("chown error in owership");
 
-    int status2=chmod(des,sourcestat.st_mode);
-	if(status2!=0)
-		printERROR("Error in setting permission of file using chmod");
+	if(chmod(des,stSRC.st_mode) != 0)
+		printERROR("chmod error in permission");
 
 }
 
 //**********************************************************************
 // This Function handle copy cmd argument specified by user
 //**********************************************************************
-void copycommand(vector<string> list)
-{
-	unsigned int len = list.size();
-	if(len < 3)
-	{
-		printERROR("Less number of Argument in copy command !!!");
-	}
+void copy(vector<string> list){
+	unsigned int size = list.size(), i;
+	if(size < 3)
+		printERROR("arguments missing !");
 	else{
+		for(i=1; i<size-1; i++){
+			string str = list[i];
+			size_t pos = str.find_last_of("/\\");
+			string fileName = str.substr(pos+1, str.length());
 			
-		for(unsigned int i=1;i<len-1;i++)
-		{
-			//getFileNameFromPath
-			string newData = list[i];
-			size_t pos = newData.find_last_of("/\\");
-			string name = newData.substr(pos+1, newData.length());
-			
-				
-			//cout<<"\nfilename : "<<name;
-
-			string destpath= list[len-1];
-			destpath =destpath + "/" + name;
-			char *des = new char[destpath.length() + 1];
-			strcpy(des, destpath.c_str());
-			//cout<<"\ndespath in copy : "<<des<<endl;
+			string dest = list[size-1] + "/" + fileName;
+			char des[dest.length() + 1];
+			strcpy(des, dest.c_str());
 	
-			char *path = new char[newData.length() + 1];
-			strcpy(path, newData.c_str());
+			char path[str.length() + 1];
+			strcpy(path, str.c_str());
 			if(isDIR(path))
-			{
-				copydirectory(path,des);
-			}
+				copy_dir(path,des);
 			else
-			{
-				copyfile(path,des);
-			}
+				copy_file(path,des);
 		}
 	}
 }
@@ -978,31 +859,23 @@ void copycommand(vector<string> list)
 //**********************************************************************
 // This function is to remove single file 
 //**********************************************************************
-void removeSingleFile(char *path)
-{
-	//cout<<"path for deleting file : "<<path<<endl;
-	int status= remove(path);
-	 if(status != 0)
-	 {
+void delete_file_util(char *path){
+	 if(remove(path) != 0)
 	 	printERROR("Error in removing the File with path ::::: "+string(path));
-	 }
-	
 }
 
 //**********************************************************************
 // It removes multiple files that passed by User in argument
 //**********************************************************************
-void removeFiles(vector<string> list)
-{	
+void delete_file(vector<string> list){	
+	unsigned int i, size = list.size();
 	if(list.size()<2)
-	{
-		 printERROR("Less number of Argument in delete_file command");
-	}
-	for(unsigned int i=1;i<list.size();i++)
-	{
-		 char *path = new char[list[i].length() + 1];
+		 printERROR("More arguments expected !");
+	
+	for(i=1; i<size; i++){
+		 char path[list[i].length() + 1];
 		 strcpy(path, list[i].c_str());
-		 removeSingleFile(path);
+		 delete_file_util(path);
 	}	 
 }
 
@@ -1022,17 +895,15 @@ void createSingleFile(char *path)
 //**********************************************************************
 // This function is used to create multiple files as given by user
 //**********************************************************************
-void createNewFiles(vector<string> list)
-{
+void createNewFiles(vector<string> list){
 
-	if(list.size() < 3)
-	{
+	if(list.size() < 3){
 		printERROR("Less Number of Argument in Renaming !!!");
 		return ;
 	}
 	unsigned int len=list.size();
 	string destpath= pathProcessing(list[len-1]);
-	//cout<<"\ndestpath : "<<destpath<<endl;
+	
 	for(unsigned int i=1;i<len-1;i++)
 	{
 		 string fileName = destpath + "/" + list[i];
@@ -1123,67 +994,46 @@ void makeDirectories(vector<string> list)
 // This function recursively remove all file and dir inside it.
 // and finally delete dir itself
 //**********************************************************************
-void removeSingleDirectory(char *path)
-{
-	DIR *d;
+void delete_dir_util(char *currPath){
+	DIR *d = opendir(currPath);
 	struct dirent *dir;
-	d = opendir(path);
-	if (d) 
-	{
-	    while ((dir = readdir(d)) != NULL) 
-	    {
-		      if( (string(dir->d_name) == "..") || (string(dir->d_name) == ".") )	
-		      {   } 
-		  	  else
-		  	  {		
-		  	  		string finalpath=string(path) + "/" +string(dir->d_name);
-					char* newpath = new char[finalpath.length() + 1];
-					strcpy(newpath, finalpath.c_str());
+	if (d){
+	    while ((dir = readdir(d)) != NULL){
+		    if( (string(dir->d_name) != "..") && (string(dir->d_name) != ".") ){
+				  
+				string fullPath=string(currPath) + "/" +string(dir->d_name);
+				char tempPath[fullPath.length() + 1];
+				strcpy(tempPath, fullPath.c_str());
 
-		  			struct stat sb;
-					if (stat(newpath,&sb) == -1) {
-				        perror("lstat");
-				    }
-				    else{
-
-				    	if((S_ISDIR(sb.st_mode)))
-					    {
-					    	removeSingleDirectory(newpath);
-					    }
-					    else
-					    {
-					    	removeSingleFile(newpath);
-					    }
-				    }		
-		  	  }
+				struct stat st;
+				if (stat(tempPath,&st) == -1)
+					perror("lstat");
+				else{
+					if((S_ISDIR(st.st_mode)))
+						delete_dir_util(tempPath);
+					else
+						delete_file_util(tempPath);
+				}		
+		  	}
 	    }
 	    closedir(d);
-	    int status= rmdir(path);
-		if(-1 == status)
-		{
-		 	printERROR("Error in removing the Directory with path ::::: "+string(path));
-		}
-	}
-	else{
-		printERROR("No such Directory Exist !!!");
-	}
+	    if(rmdir(currPath) == -1)
+		 	printERROR("cant remove -> "+string(currPath));
+	}else
+		printERROR("No such Directory!");
 }
 
 //**********************************************************************
 // It removes multiple directory that passed by User in argument
 //**********************************************************************
-void removeDirectories(vector<string> list)
-{
-	if(list.size() < 2)
-	{
-		printERROR("Less number of argument in delete_dir !!!");
-	}
-	for(unsigned int i=1;i<list.size();i++)
-	{
-		 char *path = new char[list[i].length() + 1];
+void delete_dir(vector<string> list){
+	unsigned int i, size = list.size();
+	if(size < 2)
+		printERROR("more args needed!");
+	for(i=1; i<size; i++){
+		 char path[list[i].length() + 1];
 		 strcpy(path, list[i].c_str());
-		 //cout<<"\nrmdir path :"<<path<<endl;
-		 removeSingleDirectory(path);
+		 delete_dir_util(path);
 	}	 
 }
 
@@ -1232,13 +1082,13 @@ void movecommand(vector<string> list)
 			strcpy(path, newData.c_str());
 			if(isDIR(path))
 			{
-				copydirectory(path,des);
-				removeSingleDirectory(path);
+				copy_dir(path,des);
+				delete_dir_util(path);
 			}
 			else
 			{
-				copyfile(path,des);
-				removeSingleFile(path);
+				copy_file(path,des);
+				delete_file_util(path);
 			}
 		}
 	}
